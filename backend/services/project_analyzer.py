@@ -140,9 +140,16 @@ class ProjectAnalyzer:
         analysis_result['summary'] = self._generate_summary(analysis_result)
         
         # Generate detailed analysis for each route
+        print(f"Generating detailed analysis for {len(file_contents)} files")
+        print(f"Languages detected: {languages}")
+        print(f"Frameworks detected: {frameworks}")
+        print(f"Databases detected: {databases}")
+        
         analysis_result['detailed_analysis'] = self._generate_detailed_analysis(
             file_contents, languages, frameworks, databases
         )
+        
+        print(f"Detailed analysis generated with keys: {list(analysis_result['detailed_analysis'].keys())}")
         
         # Store context for future queries
         analysis_result['context'] = {

@@ -58,6 +58,8 @@ const ProjectUpload = ({ onProjectSubmit, onAnalysisComplete }) => {
         });
       }
 
+      console.log('Analysis response:', response.data);
+      
       const projectData = {
         type: uploadType,
         data: uploadType === 'file' ? selectedFiles : githubUrl,
@@ -65,9 +67,25 @@ const ProjectUpload = ({ onProjectSubmit, onAnalysisComplete }) => {
 
       onProjectSubmit(projectData);
       onAnalysisComplete(response.data);
+      
+      console.log('Navigating to analysis page...');
       navigate('/analysis');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to analyze project. Please try again.');
+      console.error('Analysis error:', err);
+      console.error('Error response:', err.response);
+      console.error('Error message:', err.message);
+      
+      let errorMessage = 'Failed to analyze project. Please try again.';
+      
+      if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }

@@ -7,6 +7,15 @@ function App() {
   const [projectData, setProjectData] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
 
+  const handleAnalysisComplete = (result) => {
+    console.log('Analysis completed:', result);
+    try {
+      setAnalysisResult(result);
+    } catch (error) {
+      console.error('Error setting analysis result:', error);
+    }
+  };
+
   return (
     <Router>
       <div className="min-h-screen gradient-bg">
@@ -26,7 +35,7 @@ function App() {
               element={
                 <ProjectUpload 
                   onProjectSubmit={setProjectData}
-                  onAnalysisComplete={setAnalysisResult}
+                  onAnalysisComplete={handleAnalysisComplete}
                 />
               } 
             />

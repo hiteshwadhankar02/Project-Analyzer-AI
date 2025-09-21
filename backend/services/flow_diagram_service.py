@@ -36,18 +36,18 @@ class FlowDiagramService:
         mermaid_lines = ["graph LR"]
         mermaid_lines.append("    user([User])")
         if has_frontend:
-            mermaid_lines.append("    frontend[[Frontend UI]])" if False else "    frontend[[Frontend UI]]")
+            mermaid_lines.append("    frontend[Frontend UI]")
             mermaid_lines.append("    user -->|interacts| frontend")
         if has_backend:
-            mermaid_lines.append("    backend[(Backend API)])" if False else "    backend[(Backend API)]")
+            mermaid_lines.append("    backend[Backend API]")
             src = 'frontend' if has_frontend else 'user'
             mermaid_lines.append(f"    {src} -->|HTTP/REST| backend")
         if has_db:
-            mermaid_lines.append("    db[(Database)])" if False else "    db[(Database)]")
+            mermaid_lines.append("    db[(Database)]")
             if has_backend:
                 mermaid_lines.append("    backend -->|CRUD| db")
 
-        # Add technology annotations
+        # Add technology annotations as separate nodes
         tech_badges = []
         if frameworks:
             tech_badges.append(f"Frameworks: {', '.join(sorted(frameworks))}")
@@ -55,11 +55,12 @@ class FlowDiagramService:
             tech_badges.append(f"Databases: {', '.join(sorted(databases))}")
         if main_language and main_language != 'Unknown':
             tech_badges.append(f"Language: {main_language}")
+        
         if tech_badges:
-            # Mermaid note
-            mermaid_lines.append(f"    note1[/{' | '.join(tech_badges)}/]")
+            tech_text = ' | '.join(tech_badges)
+            mermaid_lines.append(f"    tech[\"{tech_text}\"]")
             attach_to = 'frontend' if has_frontend else ('backend' if has_backend else 'user')
-            mermaid_lines.append(f"    note1 --- {attach_to}")
+            mermaid_lines.append(f"    tech -.-> {attach_to}")
 
         mermaid = "\n".join(mermaid_lines)
 

@@ -44,33 +44,21 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
     setSelectedRoute(routeId);
     setFlowError('');
     
+    // If we have detailed analysis, just switch routes without making API calls
+    if (analysisResult.detailed_analysis && routeId !== 'flow') {
+      return;
+    }
+    
     try {
       if (routeId === 'flow') {
         setFlowLoading(true);
         const response = await axios.post('http://localhost:8000/api/flow-diagram', {
           route: routeId,
-          project_context: {
-            ...analysisResult.context,
-            technologies: analysisResult.technologies,
-            main_language: analysisResult.main_language,
-            framework: analysisResult.framework,
-            architecture_type: analysisResult.architecture_type,
-            files_analyzed: analysisResult.files_analyzed
-          }
+          project_context: analysisResult
         });
         setFlowData(response.data);
       } else {
-        const response = await axios.post('http://localhost:8000/api/get-route-info', {
-          route: routeId,
-          project_context: analysisResult.context
-        });
-        
-        // Add route-specific information to chat history
-        setChatHistory(prev => [...prev, {
-          type: 'route',
-          route: routeId,
-          content: response.data.content
-        }]);
+        // Skip fetching route info since we have detailed analysis
       }
     } catch (error) {
       console.error('Failed to get route information:', error);
@@ -99,7 +87,7 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
     try {
       const response = await axios.post('http://localhost:8000/api/query', {
         query: userQuery,
-        context: analysisResult.context,
+        context: analysisResult,
         route: selectedRoute
       });
 
@@ -193,30 +181,72 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
               {analysis.components?.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-white mb-3">Components ({analysis.components.length})</h4>
-                  <div className="space-y-3">
-                    {analysis.components.slice(0, 5).map((component, index) => (
+                  <div className="space-y-4">
+                    {analysis.components.slice(0, 3).map((component, index) => (
                       <div key={index} className="bg-white/5 p-4 rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
+                        <div className="flex justify-between items-start mb-3">
                           <span className="text-white font-medium">{component.name}</span>
                           <span className="text-white/60 text-sm">{component.type}</span>
                         </div>
-                        {component.exports?.length > 0 && (
-                          <div className="mb-2">
-                            <span className="text-white/70 text-sm">Exports: </span>
-                            <span className="text-white/60 text-sm">{component.exports.join(', ')}</span>
+                        
+                        {/* Code Preview */}
+                        {getFileContent(component.name) && (
+                          <div className="mb-3">
+                            <h5 className="text-white/80 text-sm mb-2">Code Preview:</h5>
+                            <pre className="bg-black/40 p-3 rounded text-xs text-white/70 overflow-x-auto max-h-32">
+                              {getFileContent(component.name).split('\n').slice(0, 10).join('\n')}
+                              {getFileContent(component.name).split('\n').length > 10 && '\n...'}
+                            </pre>
                           </div>
                         )}
-                        {component.imports?.length > 0 && (
-                          <div>
-                            <span className="text-white/70 text-sm">Key Imports: </span>
-                            <span className="text-white/60 text-sm">{component.imports.slice(0, 3).join(', ')}</span>
-                          </div>
-                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          {component.exports?.length > 0 && (
+                            <div>
+                              <span className="text-white/70">Exports: </span>
+                              <span className="text-white/60">{component.exports.slice(0, 2).join(', ')}</span>
+                            </div>
+                          )}
+                          {component.imports?.length > 0 && (
+                            <div>
+                              <span className="text-white/70">Key Imports: </span>
+                              <span className="text-white/60">{component.imports.slice(0, 2).join(', ')}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Component Purpose */}
+                        <div className="mt-3 p-2 bg-blue-500/10 rounded">
+                          <p className="text-blue-200 text-sm">
+                            💡 <strong>Purpose:</strong> {getComponentPurpose(component.name, component.exports)}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Frontend Architecture */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-3">Frontend Architecture</h4>
+                <div className="bg-white/5 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Structure Pattern</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.components?.length > 0 ? 'Component-based architecture' : 'Static file structure'}
+                      </p>
+                    </div>
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Data Flow</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.state_management?.length > 0 ? 'State management detected' : 'Props-based communication'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {analysis.routing_files?.length > 0 && (
                 <div className="mb-4">
@@ -269,13 +299,25 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
               {analysis.api_files?.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-white mb-3">API Endpoints</h4>
-                  <div className="space-y-3">
-                    {analysis.api_files.map((apiFile, index) => (
+                  <div className="space-y-4">
+                    {analysis.api_files.slice(0, 2).map((apiFile, index) => (
                       <div key={index} className="bg-white/5 p-4 rounded-lg">
-                        <h5 className="text-white font-medium mb-2">{apiFile.file}</h5>
-                        <div className="space-y-1">
-                          {apiFile.endpoints.map((endpoint, idx) => (
-                            <div key={idx} className="flex items-center gap-3">
+                        <h5 className="text-white font-medium mb-3">{apiFile.file}</h5>
+                        
+                        {/* Code Preview */}
+                        {getFileContent(apiFile.file) && (
+                          <div className="mb-4">
+                            <h6 className="text-white/80 text-sm mb-2">Code Preview:</h6>
+                            <pre className="bg-black/40 p-3 rounded text-xs text-white/70 overflow-x-auto max-h-32">
+                              {getFileContent(apiFile.file).split('\n').slice(0, 12).join('\n')}
+                              {getFileContent(apiFile.file).split('\n').length > 12 && '\n...'}
+                            </pre>
+                          </div>
+                        )}
+                        
+                        <div className="space-y-2">
+                          {apiFile.endpoints.slice(0, 4).map((endpoint, idx) => (
+                            <div key={idx} className="flex items-center gap-3 p-2 bg-white/5 rounded">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 endpoint.method === 'GET' ? 'bg-blue-600' :
                                 endpoint.method === 'POST' ? 'bg-green-600' :
@@ -284,15 +326,64 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
                               } text-white`}>
                                 {endpoint.method}
                               </span>
-                              <span className="text-white/80">{endpoint.path}</span>
+                              <span className="text-white/80 flex-1">{endpoint.path}</span>
+                              <span className="text-white/60 text-xs">
+                                {getEndpointPurpose(endpoint.method, endpoint.path)}
+                              </span>
                             </div>
                           ))}
+                        </div>
+                        
+                        {/* API Purpose */}
+                        <div className="mt-3 p-2 bg-orange-500/10 rounded">
+                          <p className="text-orange-200 text-sm">
+                            🔧 <strong>Purpose:</strong> {getApiFilePurpose(apiFile.file, apiFile.endpoints)}
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Backend Architecture */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-3">Backend Architecture</h4>
+                <div className="bg-white/5 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-white font-medium mb-2">API Pattern</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.api_files?.length > 0 ? 'RESTful API architecture' : 'Service-based structure'}
+                      </p>
+                    </div>
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Request Flow</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.middleware?.length > 0 ? 'Middleware-based processing' : 'Direct request handling'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Request Flow Diagram */}
+                  <div className="mt-4 p-3 bg-black/20 rounded">
+                    <h6 className="text-white/80 text-sm mb-2">Request Flow:</h6>
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <span className="px-2 py-1 bg-blue-600/20 rounded">Client</span>
+                      <span>→</span>
+                      {analysis.middleware?.length > 0 && (
+                        <>
+                          <span className="px-2 py-1 bg-yellow-600/20 rounded">Middleware</span>
+                          <span>→</span>
+                        </>
+                      )}
+                      <span className="px-2 py-1 bg-green-600/20 rounded">Route Handler</span>
+                      <span>→</span>
+                      <span className="px-2 py-1 bg-purple-600/20 rounded">Response</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {analysis.models?.length > 0 && (
                 <div className="mb-4">
@@ -338,21 +429,82 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
               {analysis.schemas?.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-white mb-3">Database Schemas</h4>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {analysis.schemas.map((schema, index) => (
                       <div key={index} className="bg-white/5 p-4 rounded-lg">
-                        <h5 className="text-white font-medium mb-2">{schema.file}</h5>
-                        {schema.tables?.length > 0 && (
-                          <div>
-                            <span className="text-white/70 text-sm">Tables: </span>
-                            <span className="text-white/60 text-sm">{schema.tables.join(', ')}</span>
+                        <h5 className="text-white font-medium mb-3">{schema.file}</h5>
+                        
+                        {/* Schema Code Preview */}
+                        {getFileContent(schema.file) && (
+                          <div className="mb-4">
+                            <h6 className="text-white/80 text-sm mb-2">Schema Code:</h6>
+                            <pre className="bg-black/40 p-3 rounded text-xs text-white/70 overflow-x-auto max-h-40">
+                              {getFileContent(schema.file).split('\n').slice(0, 15).join('\n')}
+                              {getFileContent(schema.file).split('\n').length > 15 && '\n...'}
+                            </pre>
                           </div>
                         )}
+                        
+                        {schema.tables?.length > 0 && (
+                          <div className="mb-3">
+                            <span className="text-white/70 text-sm">Tables: </span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {schema.tables.map((table, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-indigo-600 text-white rounded text-xs">
+                                  {table}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Schema Purpose */}
+                        <div className="mt-3 p-2 bg-indigo-500/10 rounded">
+                          <p className="text-indigo-200 text-sm">
+                            🗄️ <strong>Purpose:</strong> {getSchemaPurpose(schema.file, schema.tables)}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Database Architecture */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-3">Database Architecture</h4>
+                <div className="bg-white/5 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Data Model</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.schemas?.length > 0 ? 'Structured schema design' : 'Dynamic data structure'}
+                      </p>
+                    </div>
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Storage Type</h5>
+                      <p className="text-white/70 text-sm">
+                        {analysis.databases_detected?.includes('MongoDB') ? 'Document-based' : 
+                         analysis.databases_detected?.some(db => ['PostgreSQL', 'MySQL', 'SQLite'].includes(db)) ? 'Relational' : 'File-based'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Data Flow Diagram */}
+                  <div className="p-3 bg-black/20 rounded">
+                    <h6 className="text-white/80 text-sm mb-2">Data Flow:</h6>
+                    <div className="flex items-center gap-2 text-xs text-white/60 flex-wrap">
+                      <span className="px-2 py-1 bg-blue-600/20 rounded">Application</span>
+                      <span>→</span>
+                      <span className="px-2 py-1 bg-green-600/20 rounded">ORM/Query Layer</span>
+                      <span>→</span>
+                      <span className="px-2 py-1 bg-indigo-600/20 rounded">Database</span>
+                      <span>→</span>
+                      <span className="px-2 py-1 bg-purple-600/20 rounded">Storage</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {analysis.migrations?.length > 0 && (
                 <div>
@@ -402,14 +554,88 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
                 </div>
               )}
 
+              {/* Architecture Visualization */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-3">System Architecture</h4>
+                <div className="bg-white/5 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                    {analysis.layers?.map((layer, index) => (
+                      <div key={index} className="p-3 bg-cyan-600/20 rounded text-center">
+                        <h5 className="text-cyan-200 font-medium text-sm">{layer}</h5>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Architecture Flow */}
+                  <div className="p-3 bg-black/20 rounded mb-4">
+                    <h6 className="text-white/80 text-sm mb-2">Architecture Flow:</h6>
+                    <div className="flex items-center gap-2 text-xs text-white/60 flex-wrap justify-center">
+                      <span className="px-2 py-1 bg-blue-600/20 rounded">Presentation</span>
+                      <span>↓</span>
+                      <span className="px-2 py-1 bg-green-600/20 rounded">Business Logic</span>
+                      <span>↓</span>
+                      <span className="px-2 py-1 bg-purple-600/20 rounded">Data Access</span>
+                      <span>↓</span>
+                      <span className="px-2 py-1 bg-indigo-600/20 rounded">Database</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Code Organization */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-3">Code Organization</h4>
+                <div className="bg-white/5 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-white font-medium mb-2">File Structure</h5>
+                      <div className="text-sm text-white/70">
+                        {getArchitectureStructure(analysisResult.context?.files)}
+                      </div>
+                    </div>
+                    <div>
+                      <h5 className="text-white font-medium mb-2">Design Patterns</h5>
+                      <div className="space-y-1">
+                        {analysis.patterns?.map((pattern, index) => (
+                          <span key={index} className="inline-block px-2 py-1 bg-pink-600/20 text-pink-200 rounded text-sm mr-2">
+                            {pattern}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-white/5 p-4 rounded-lg">
                 <h4 className="font-semibold text-white mb-2">Separation of Concerns</h4>
-                <p className="text-white/70">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-4 h-4 rounded-full ${analysis.separation_of_concerns ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                  <span className="text-white/80">
+                    {analysis.separation_of_concerns ? 'Well Organized' : 'Needs Improvement'}
+                  </span>
+                </div>
+                <p className="text-white/70 text-sm">
                   {analysis.separation_of_concerns 
-                    ? 'Good separation of concerns detected with multiple application layers'
-                    : 'Limited separation of concerns - consider organizing code into distinct layers'
+                    ? 'Good separation of concerns detected with multiple application layers. The code is well-organized with clear boundaries between different responsibilities.'
+                    : 'Limited separation of concerns detected. Consider organizing code into distinct layers (presentation, business logic, data access) for better maintainability.'
                   }
                 </p>
+                
+                {/* Recommendations */}
+                <div className="mt-4 p-3 bg-yellow-500/10 rounded">
+                  <h5 className="text-yellow-200 font-medium text-sm mb-2">💡 Recommendations:</h5>
+                  <ul className="text-yellow-200/80 text-sm space-y-1">
+                    {!analysis.separation_of_concerns && (
+                      <li>• Separate business logic from presentation components</li>
+                    )}
+                    {analysis.patterns?.length === 0 && (
+                      <li>• Consider implementing design patterns like MVC or Repository</li>
+                    )}
+                    <li>• Use dependency injection for better testability</li>
+                    <li>• Implement proper error handling and logging</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -449,8 +675,14 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
 
     // Use detailed analysis from backend
     const detailedAnalysis = analysisResult.detailed_analysis;
+    
     if (detailedAnalysis && detailedAnalysis[selectedRoute]) {
-      return renderDetailedAnalysis(detailedAnalysis[selectedRoute]);
+      try {
+        return renderDetailedAnalysis(detailedAnalysis[selectedRoute]);
+      } catch (error) {
+        console.error('Error rendering detailed analysis:', error);
+        // Fall through to fallback content
+      }
     }
 
     // If no detailed analysis, try to get it from the backend
@@ -586,6 +818,85 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
           </div>
         );
     }
+  };
+
+  // Helper functions for code analysis
+  const getFileContent = (filename) => {
+    const file = analysisResult.context?.files?.find(f => f.name === filename);
+    return file?.content || '';
+  };
+
+  const getComponentPurpose = (filename, exports) => {
+    const name = filename.toLowerCase();
+    if (name.includes('app')) return 'Main application component that orchestrates the entire app';
+    if (name.includes('header')) return 'Navigation and branding component';
+    if (name.includes('footer')) return 'Footer content and links component';
+    if (name.includes('sidebar')) return 'Side navigation or menu component';
+    if (name.includes('modal')) return 'Popup dialog or overlay component';
+    if (name.includes('form')) return 'User input and form handling component';
+    if (name.includes('button')) return 'Interactive button component';
+    if (name.includes('card')) return 'Content display card component';
+    if (name.includes('list')) return 'Data listing and display component';
+    if (exports?.some(e => e.toLowerCase().includes('provider'))) return 'Context or state provider component';
+    return 'Reusable UI component for specific functionality';
+  };
+
+  const getApiFilePurpose = (filename, endpoints) => {
+    const name = filename.toLowerCase();
+    if (name.includes('auth')) return 'Handles user authentication and authorization';
+    if (name.includes('user')) return 'Manages user data and profile operations';
+    if (name.includes('admin')) return 'Administrative functions and management';
+    if (name.includes('api') || name.includes('route')) return 'Main API routing and endpoint definitions';
+    if (name.includes('controller')) return 'Business logic and request processing';
+    if (name.includes('service')) return 'Service layer for business operations';
+    if (endpoints?.some(e => e.method === 'POST')) return 'Handles data creation and updates';
+    if (endpoints?.some(e => e.method === 'GET')) return 'Provides data retrieval and queries';
+    return 'Server-side logic and API endpoints';
+  };
+
+  const getEndpointPurpose = (method, path) => {
+    const pathLower = path.toLowerCase();
+    if (method === 'GET' && pathLower.includes('list')) return 'List items';
+    if (method === 'GET' && pathLower.includes('search')) return 'Search data';
+    if (method === 'GET') return 'Fetch data';
+    if (method === 'POST' && pathLower.includes('login')) return 'User login';
+    if (method === 'POST' && pathLower.includes('register')) return 'User signup';
+    if (method === 'POST') return 'Create new';
+    if (method === 'PUT') return 'Update existing';
+    if (method === 'DELETE') return 'Remove item';
+    return 'Process request';
+  };
+
+  const getSchemaPurpose = (filename, tables) => {
+    const name = filename.toLowerCase();
+    if (name.includes('user')) return 'Manages user accounts and authentication data';
+    if (name.includes('product')) return 'Stores product catalog and inventory information';
+    if (name.includes('order')) return 'Handles order processing and transaction records';
+    if (name.includes('migration')) return 'Database schema version control and updates';
+    if (name.includes('seed')) return 'Initial data population for development/testing';
+    if (tables?.some(t => t.toLowerCase().includes('user'))) return 'User management and profile data storage';
+    if (tables?.length > 5) return 'Complex data relationships and business logic storage';
+    return 'Application data storage and management';
+  };
+
+  const getArchitectureStructure = (files) => {
+    if (!files || files.length === 0) return 'No files analyzed';
+    
+    const structure = [];
+    const hasComponents = files.some(f => f.name?.includes('component'));
+    const hasServices = files.some(f => f.name?.includes('service'));
+    const hasControllers = files.some(f => f.name?.includes('controller'));
+    const hasModels = files.some(f => f.name?.includes('model'));
+    
+    if (hasComponents) structure.push('📱 Component-based UI');
+    if (hasServices) structure.push('⚙️ Service layer architecture');
+    if (hasControllers) structure.push('🎮 Controller-based routing');
+    if (hasModels) structure.push('📊 Data model definitions');
+    
+    const directories = [...new Set(files.map(f => f.name?.split('/')[0]).filter(Boolean))];
+    if (directories.length > 3) structure.push(`📁 ${directories.length} main directories`);
+    
+    return structure.length > 0 ? structure.join(', ') : 'Flat file structure';
   };
 
   return (

@@ -9,7 +9,9 @@ class PerplexityService:
         self.base_url = "https://api.perplexity.ai/chat/completions"
         self.model = "llama-3.1-sonar-small-128k-online"  # Use the online model for better results
         
-        if not self.api_key:
+        if self.api_key:
+            print(f"Perplexity API Key loaded successfully: {self.api_key[:5]}...")
+        else:
             print("Warning: PERPLEXITY_API_KEY not found in environment variables")
 
     async def get_route_information(self, route: str, project_context: Dict[str, Any]) -> str:
