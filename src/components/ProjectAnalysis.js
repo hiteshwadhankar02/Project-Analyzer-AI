@@ -453,6 +453,7 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
       return renderDetailedAnalysis(detailedAnalysis[selectedRoute]);
     }
 
+    // If no detailed analysis, try to get it from the backend
     const routeContent = chatHistory
       .filter(item => item.type === 'route' && item.route === selectedRoute)
       .pop();
@@ -465,7 +466,11 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
       );
     }
 
-    // Default content based on analysis result
+    // Enhanced fallback content when detailed analysis isn't available
+    return renderFallbackContent();
+  };
+
+  const renderFallbackContent = () => {
     switch (selectedRoute) {
       case 'overview':
         return (
@@ -491,13 +496,86 @@ const ProjectAnalysis = ({ projectData, analysisResult }) => {
 
             <div>
               <h3 className="text-xl font-semibold text-white mb-3">Project Structure</h3>
-              <pre className="bg-black/30 p-4 rounded-lg text-white/80 overflow-x-auto">
+              <pre className="bg-black/30 p-4 rounded-lg text-white/80 overflow-x-auto text-sm">
                 {analysisResult.structure}
               </pre>
             </div>
           </div>
         );
       
+      case 'frontend':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-3">Frontend Analysis</h3>
+              <p className="text-white/80 mb-4">Analyzing frontend components and structure...</p>
+              
+              <div className="bg-white/5 p-4 rounded-lg mb-4">
+                <h4 className="font-semibold text-white mb-2">Frontend Files Detected</h4>
+                <div className="space-y-2">
+                  {analysisResult.context?.files?.filter(file => 
+                    file.name?.match(/\.(jsx?|tsx?|vue|html|css|scss)$/i)
+                  ).slice(0, 5).map((file, index) => (
+                    <div key={index} className="text-white/70 text-sm">
+                      📄 {file.name} ({file.content?.split('\n').length || 0} lines)
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-lg">
+                <h4 className="font-semibold text-white mb-2">Technologies</h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysisResult.technologies?.filter(tech => 
+                    ['React', 'Vue', 'Angular', 'HTML', 'CSS', 'JavaScript', 'TypeScript'].includes(tech)
+                  ).map((tech, index) => (
+                    <span key={index} className="px-3 py-1 bg-blue-600 text-white rounded-full text-sm">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'backend':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-3">Backend Analysis</h3>
+              <p className="text-white/80 mb-4">Analyzing backend services and APIs...</p>
+              
+              <div className="bg-white/5 p-4 rounded-lg mb-4">
+                <h4 className="font-semibold text-white mb-2">Backend Files Detected</h4>
+                <div className="space-y-2">
+                  {analysisResult.context?.files?.filter(file => 
+                    file.name?.match(/\.(py|java|php|rb|go|cs|js)$/i) && 
+                    !file.name?.match(/\.(jsx|tsx)$/i)
+                  ).slice(0, 5).map((file, index) => (
+                    <div key={index} className="text-white/70 text-sm">
+                      🔧 {file.name} ({file.content?.split('\n').length || 0} lines)
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-lg">
+                <h4 className="font-semibold text-white mb-2">Backend Technologies</h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysisResult.technologies?.filter(tech => 
+                    ['Python', 'Django', 'Flask', 'FastAPI', 'Express', 'Node.js', 'Java', 'Spring'].includes(tech)
+                  ).map((tech, index) => (
+                    <span key={index} className="px-3 py-1 bg-orange-600 text-white rounded-full text-sm">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return (
           <div className="text-center py-12">
